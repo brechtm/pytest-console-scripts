@@ -12,6 +12,8 @@ import mock
 import py.path
 import pytest
 
+from pkg_resources import iter_entry_points
+
 if sys.version_info.major == 2:
     # We can't use io.StringIO for mocking stdout/stderr in Python 2
     # because printing byte strings to it triggers unicode errors and
@@ -171,7 +173,8 @@ class ScriptRunner(object):
 
     def run_inprocess(self, command, *arguments, **options):
         cmdargs = [command] + list(arguments)
-        script = py.path.local(self._locate_script(command, **options))
+        entry_point, = iter_entry_points('console_scripts', command)
+        function = entry_point.load()
         stdin = options.get('stdin', StreamMock())
         stdout = StreamMock()
         stderr = StreamMock()
@@ -191,8 +194,7 @@ class ScriptRunner(object):
             os.chdir(options['cwd'])
         with stdin_patch, stdout_patch, stderr_patch, argv_patch:
             try:
-                compiled = compile(script.read(), str(script), 'exec', flags=0)
-                exec(compiled, {'__name__': '__main__'})
+                function()
             except SystemExit as exc:
                 returncode = exc.code
                 if isinstance(returncode, str):
